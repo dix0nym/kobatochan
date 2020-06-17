@@ -8,7 +8,7 @@ from util import compress
 import json
 from bookcreator import BookCreator
 
-headers = {"user-agent:": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36"}
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36"}
 
 blacklist_patterns = [
     r'^[\W\D]*(volume|chapter)[\W\D]+\d+[\W\D]*$',
@@ -90,21 +90,37 @@ def clean_contents(div):
             tag.attrs = {}
     return div
 
+def get_pages(session, soup, url):
+    pages = soup.select('a.post-page-numbers')
+    links = [page['href'] for page in pages if url in page['href']]
+    links = list(set(links))
+    print(f"found {len(links)} more pages for {url}")
+    body = ""
+    for link in links:
+        soup = get_soup(session, link)
+        if not soup:
+            continue
+        body += get_body(soup)
+    return body        
+
+def get_body(soup):
+    content = soup.select_one("div.entry-content")
+    content = clean_contents(content)
+    body = content.select('p')
+    body = [str(p) for p in body if p.text != "/"]
+    return '<p>' + '</p><p>'.join(body) + '</p>'
+
 def download_chapters(novel_path, session, chapters):
     for i, (title, url) in enumerate(chapters):
         print(f"downloading chapter {i}")
         soup = get_soup(session, url)
         title = title if title else f"Chapter {i}"
-        content = soup.select_one("div.entry-content")
-        content = clean_contents(content)
-        body = content.select('p')
-        body = [str(p) for p in body if p.text != "/"]
-        k =  '<p>' + '</p><p>'.join(body) + '</p>'
+        body = get_body(soup) + get_pages(session, soup, url)
         filename = f"{i}".zfill(5) + ".json"
         volume = max([1, 1 + (i - 1) // 100])
         filepath = novel_path.joinpath(str(volume), filename)
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        jdata = {"body": compress(k), 'chapter_no': i, 'chapter_title': title}
+        jdata = {"body": compress(body), 'chapter_no': i, 'chapter_title': title}
         with filepath.open('w+', encoding='utf-8') as f:
             json.dump(jdata, f, separators=(',', ':'))
 
