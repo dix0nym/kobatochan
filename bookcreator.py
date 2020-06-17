@@ -179,9 +179,7 @@ class BookCreator:
         # end if
         file_name = "{}_v{}.epub".format(name.replace("-", "_"), self.volume_no.zfill(2))
         file_path = os.path.join(output_path, file_name)
-        print(file_path)
         self.logger.info("Creating: %s", file_path)
-        print(self.book)
         epub.write_epub(file_path, self.book, {})
 
     # end def
